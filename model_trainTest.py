@@ -2,9 +2,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.functional as F
-import torchvision
-import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import gym

@@ -6,7 +6,6 @@ tqdm
 
 # Move-prediction networks
 torch
-torchvision
 tensorboard
 gym==0.21.0
 gym-chess
