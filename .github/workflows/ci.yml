@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      # Everything except the training stack (torch, gym), which the tests do not need.
+      - run: pip install python-chess numpy pandas flask flask-cors pytest
+      - run: pytest -q
+      - name: Simulated game and reach check
+        run: |
+          python calibrate.py --check
+          python testing_vs_random.py --engine random --games 4
