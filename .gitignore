@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+*.egg-info/
+
+# Large training artefacts
+data/rawData/
+data/preparedData/
+LichessEliteDatabase/
+runs/
+savedModels/
+
+# Local calibration and secrets
+calibration.local.json
+.env
