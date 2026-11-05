@@ -1,44 +1,61 @@
 #Author: Kishorekumar Vishwanathan
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from model_trainWhite import Model as whiteModel
-from model_trainBlack import Model as blackModel
-from model_trainTest import Model as combinedModel
-import torch
-import chess
+"""HTTP move server for the robot and any UI.
 
-app = Flask(__name__)
-CORS(app)
+    POST /predict_move  {"board_state": "<FEN>"}  ->  {"move": "e2e4"}
+    GET  /health
 
-white_chess_model = whiteModel()
-black_chess_model = blackModel()
+    CHESS_ENGINE=random python server.py     # no model weights needed
+"""
+import os
 
-#load model from path
-white_model_path = "savedModels/whiteModels/model_20240118_100613_66"
-black_model_path = "savedModels/blackModels/model_20240117_181529_69"
+from flask import Flask, jsonify, request
 
-white_chess_model.load_state_dict(torch.load(white_model_path))
-white_chess_model.eval()
-
-black_chess_model.load_state_dict(torch.load(black_model_path))
-black_chess_model.eval()
+from robot.board import parse_fen
 
 
-@app.route('/predict_move', methods=['POST'])
-def predict_move():
-    print(request.json)
-    if request.method == 'POST':
-        board = request.json['board_state']
-        board = chess.Board(board)
-        move = None
-        if board.turn == chess.WHITE:
-            move = white_chess_model.predict(board)
-            print("White move:", move)
-        else:
-            move = black_chess_model.predict(board)
-            print("Black move:", move)
+def create_app(engine=None):
+    app = Flask(__name__)
+    try:
+        from flask_cors import CORS
 
-        return jsonify({'move': str(move)})
-    
-if __name__ == '__main__':
-    app.run(port=5000)
+        CORS(app)
+    except ImportError:
+        pass
+
+    state = {"engine": engine}
+
+    def get_engine():
+        if state["engine"] is None:
+            from engine import engine_from_env
+
+            state["engine"] = engine_from_env()  # load weights on first request, not at import
+        return state["engine"]
+
+    @app.get("/health")
+    def health():
+        return jsonify({"ok": True, "engine": type(state["engine"]).__name__ if state["engine"] else "not loaded"})
+
+    @app.post("/predict_move")
+    def predict_move():
+        from engine import NoLegalMoves
+
+        body = request.get_json(silent=True) or {}
+        fen = body.get("board_state")
+        if not isinstance(fen, str) or not fen.strip():
+            return jsonify({"error": "board_state (a FEN string) is required"}), 400
+        try:
+            parse_fen(fen)
+        except ValueError as exc:
+            return jsonify({"error": f"invalid FEN: {exc}"}), 400
+        try:
+            move = get_engine().best_move(fen)
+        except NoLegalMoves as exc:
+            return jsonify({"error": "game over", "result": str(exc)}), 409
+        app.logger.info("%s -> %s", fen, move)
+        return jsonify({"move": move})
+
+    return app
+
+
+if __name__ == "__main__":
+    create_app().run(host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", 5000)))
