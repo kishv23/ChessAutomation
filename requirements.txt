@@ -1,0 +1,25 @@
+# Chess logic and training data
+python-chess>=1.10
+numpy
+pandas
+tqdm
+
+# Move-prediction networks
+torch
+torchvision
+tensorboard
+gym==0.21.0
+gym-chess
+
+# Engine evaluation (optional)
+stockfish
+
+# Move server
+flask
+flask-cors
+
+# Robotic arm over USB serial
+pyserial
+
+# Tests
+pytest
