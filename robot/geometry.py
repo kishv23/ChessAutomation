@@ -27,9 +27,13 @@ class Calibration:
     board_z: float = 0.0
     travel_z: float = 120.0  # safe height for moving above pieces
     grip_heights: Dict[str, float] = field(default_factory=lambda: dict(DEFAULT_GRIP_HEIGHTS))
-    graveyard_origin: Tuple[float, float] = (90.0, -160.0)
+    # One graveyard per colour, flanking the board, 2 rows of 8 slots each.
+    graveyard_origin: Tuple[float, float] = (90.0, -160.0)          # white pieces, -y side
+    graveyard_origin_black: Tuple[float, float] = (90.0, 160.0)     # black pieces, +y side
     graveyard_spacing: float = 28.0
     graveyard_columns: int = 8
+    graveyard_rows: int = 2
+    overflow_bin: Tuple[float, float] = (40.0, -150.0)  # drop zone once a graveyard is full
     reserve: Dict[str, Tuple[float, float]] = field(
         default_factory=lambda: {"q": (335.0, -45.0), "r": (335.0, -15.0), "b": (335.0, 15.0), "n": (335.0, 45.0)}
     )
@@ -39,8 +43,10 @@ class Calibration:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f)
         raw["a1"], raw["h8"] = tuple(raw["a1"]), tuple(raw["h8"])
-        raw["graveyard_origin"] = tuple(raw.get("graveyard_origin", cls().graveyard_origin))
-        raw["reserve"] = {k: tuple(v) for k, v in raw.get("reserve", cls().reserve).items()}
+        defaults = cls()
+        for key in ("graveyard_origin", "graveyard_origin_black", "overflow_bin"):
+            raw[key] = tuple(raw.get(key, getattr(defaults, key)))
+        raw["reserve"] = {k: tuple(v) for k, v in raw.get("reserve", defaults.reserve).items()}
         return cls(**raw)
 
     def save(self, path: str) -> None:
@@ -60,7 +66,7 @@ class BoardGeometry:
         self.square_size = diag / (7 * math.sqrt(2))
         # The diagonal sits at 45 degrees to the files, so subtract that to get board rotation.
         self.rotation = math.atan2(hy - ay, hx - ax) - math.pi / 4
-        self._graveyard_used = 0
+        self._graveyard_used = {"white": 0, "black": 0}
 
     def _board_to_arm(self, file: float, rank: float) -> Tuple[float, float]:
         s, c = math.sin(self.rotation), math.cos(self.rotation)
@@ -74,12 +80,19 @@ class BoardGeometry:
     def square_xy(self, square: str) -> Tuple[float, float]:
         return self._board_to_arm(FILES.index(square[0]), int(square[1]) - 1)
 
-    def next_graveyard_xy(self) -> Tuple[float, float]:
-        i = self._graveyard_used
-        self._graveyard_used += 1
+    def next_graveyard_xy(self, piece: str = "P") -> Tuple[float, float]:
+        """Next free slot in the graveyard for the piece's colour, then the overflow bin."""
+        colour = "white" if piece.isupper() else "black"
+        i = self._graveyard_used[colour]
+        self._graveyard_used[colour] += 1
+        if i >= self.cal.graveyard_columns * self.cal.graveyard_rows:
+            return self.cal.overflow_bin
         col, row = i % self.cal.graveyard_columns, i // self.cal.graveyard_columns
-        gx, gy = self.cal.graveyard_origin
-        return gx + col * self.cal.graveyard_spacing, gy - row * self.cal.graveyard_spacing
+        if colour == "white":
+            gx, gy = self.cal.graveyard_origin
+            return gx + col * self.cal.graveyard_spacing, gy - row * self.cal.graveyard_spacing
+        gx, gy = self.cal.graveyard_origin_black
+        return gx + col * self.cal.graveyard_spacing, gy + row * self.cal.graveyard_spacing
 
     def reserve_xy(self, piece: str) -> Tuple[float, float]:
         try:
@@ -88,7 +101,7 @@ class BoardGeometry:
             raise ValueError(f"no reserve slot for {piece!r}") from None
 
     def reset_graveyard(self) -> None:
-        self._graveyard_used = 0
+        self._graveyard_used = {"white": 0, "black": 0}
 
     def corners(self) -> List[Tuple[float, float]]:
         """Outer board corners, for reachability checks during calibration."""

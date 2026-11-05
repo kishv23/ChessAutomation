@@ -23,12 +23,14 @@ def test_rotated_board():
     assert g.square_xy("h1") == pytest.approx((200.0, 110.0))
 
 
-def test_graveyard_fills_in_rows():
-    cal = Calibration(graveyard_origin=(0.0, 0.0), graveyard_spacing=10.0, graveyard_columns=2)
+def test_graveyard_fills_in_rows_per_colour_then_overflows():
+    cal = Calibration(graveyard_origin=(0.0, 0.0), graveyard_origin_black=(0.0, 100.0), graveyard_spacing=10.0,
+                      graveyard_columns=2, graveyard_rows=2, overflow_bin=(-5.0, -5.0))
     g = BoardGeometry(cal)
-    assert [g.next_graveyard_xy() for _ in range(3)] == [(0.0, 0.0), (10.0, 0.0), (0.0, -10.0)]
+    assert [g.next_graveyard_xy("P") for _ in range(5)] == [(0.0, 0.0), (10.0, 0.0), (0.0, -10.0), (10.0, -10.0), (-5.0, -5.0)]
+    assert [g.next_graveyard_xy("q") for _ in range(3)] == [(0.0, 100.0), (10.0, 100.0), (0.0, 110.0)]
     g.reset_graveyard()
-    assert g.next_graveyard_xy() == (0.0, 0.0)
+    assert g.next_graveyard_xy("N") == (0.0, 0.0)
 
 
 def test_calibration_roundtrip(tmp_path):
@@ -76,7 +78,8 @@ def test_default_layout_is_fully_reachable_at_grip_and_travel_height():
     cal = Calibration()
     g = BoardGeometry(cal)
     points = [g.square_xy(f"{f}{r}") for f in "abcdefgh" for r in "12345678"]
-    points += [g.next_graveyard_xy() for _ in range(16)]  # every captured piece
+    # Every capture and promoted pawn for both colours, including the overflow bin.
+    points += [g.next_graveyard_xy(p) for p in "P" * 24 + "p" * 24]
     points += list(cal.reserve.values())
     for x, y in points:
         for z in (cal.board_z + 25.0, cal.travel_z):

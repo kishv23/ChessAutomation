@@ -25,7 +25,7 @@ class ArmController:
 
     def _xy(self, place: str, piece: str) -> Tuple[float, float]:
         if place == GRAVEYARD:
-            return self.geometry.next_graveyard_xy()
+            return self.geometry.next_graveyard_xy(piece)
         if place == RESERVE:
             return self.geometry.reserve_xy(piece)
         return self.geometry.square_xy(place)

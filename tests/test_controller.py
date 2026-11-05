@@ -49,7 +49,7 @@ def test_capture_sends_piece_to_successive_graveyard_slots(setup):
     arm, geometry, ctl = setup
     fen = "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2"
     ctl.play(fen, "e4d5")
-    first_slot = geometry.cal.graveyard_origin
+    first_slot = geometry.cal.graveyard_origin_black  # captured piece is black
     drop = tips(arm)[4]
     assert drop[:2] == pytest.approx(first_slot)
     ctl.new_game()
