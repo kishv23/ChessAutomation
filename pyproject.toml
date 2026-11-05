@@ -1,0 +1,9 @@
+[project]
+name = "chess-automation"
+version = "0.2.0"
+description = "Chess-playing robot: move-prediction networks driving a robotic arm, human vs robot."
+requires-python = ">=3.9"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
