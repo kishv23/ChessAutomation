@@ -21,31 +21,11 @@ def test_robot_plays_a_whole_game_against_a_scripted_human():
     arm = SimulatedArm()
     controller = ArmController(arm, BoardGeometry(Calibration()))
     human = RandomEngine(seed=1)
-    board_holder = {}
-
-    def read(_prompt):
-        # The scripted human plays random legal moves on the same board the game uses.
-        return human.best_move(board_holder["fen"])
-
-    def write(msg):
-        pass
-
-    import play as play_module
-
-    real_board = play_module.chess.Board
-
-    class TrackedBoard(real_board):
-        def push(self, move):
-            super().push(move)
-            board_holder["fen"] = self.fen()
-
-    board_holder["fen"] = chess.STARTING_FEN
-    play_module.chess.Board = TrackedBoard
-    try:
-        result = play(RandomEngine(seed=2), controller, chess.BLACK, read=read, write=write)
-    finally:
-        play_module.chess.Board = real_board
+    board = chess.Board()
+    result = play(RandomEngine(seed=2), controller, chess.BLACK,
+                  read=lambda _prompt: human.best_move(board.fen()), write=lambda _msg: None, board=board)
     assert result in ("1-0", "0-1", "1/2-1/2")
+    assert board.is_game_over()
     assert any(kind == "move" for kind, _ in arm.log)
 
 

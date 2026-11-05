@@ -40,8 +40,8 @@ def robot_turn(board, engine, controller):
     return san
 
 
-def play(engine, controller, robot_color=chess.BLACK, read=input, write=print):
-    board = chess.Board()
+def play(engine, controller, robot_color=chess.BLACK, read=input, write=print, board=None):
+    board = board if board is not None else chess.Board()
     controller.new_game()
     while not board.is_game_over():
         if board.turn == robot_color:
