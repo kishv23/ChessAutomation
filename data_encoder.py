@@ -5,21 +5,27 @@ Created on Fri Nov  3 21:19:28 2023
 ##Author: Kishorekumar Vishwanathan
 """
 
-import chess
-import gym
-import gym_chess
+import argparse
 import os
+
+import chess
 import numpy as np
 import pandas as pd
 
 
-# Define the Gym-Chess environment
-env = gym.make('ChessAlphaZero-v0')
-env.reset()
+def make_env():
+    """AlphaZero-style 8x8x73 move encoder from gym-chess. Imported lazily: heavy."""
+    import gym
+    import gym_chess  # noqa: F401  registers ChessAlphaZero-v0
+
+    env = gym.make('ChessAlphaZero-v0')
+    env.reset()
+    return env
+
 
 # Function to decode a chess move
 def decode_move(move_int, env):
-    decoded_move = env.decode(move_int)
+    return env.decode(move_int)
 
 # Function to encode a chess move
 def encode_move(move_str, env):
@@ -90,17 +96,25 @@ def encode_all_moves_and_positions_from_directory(directory, env):
     return encoded_positions, encoded_moves
 
 # Function to save encoded positions and moves to files
-def save_encoded_data(encoded_positions, encoded_moves, player):
-    np.save('data/preparedData/encoded_positions_' + player + '.npy', encoded_positions)
-    np.save('data/preparedData/encoded_moves_' + player + '.npy', encoded_moves)
+def save_encoded_data(encoded_positions, encoded_moves, player, out_dir='data/preparedData'):
+    os.makedirs(out_dir, exist_ok=True)
+    np.save(os.path.join(out_dir, 'encoded_positions_' + player + '.npy'), np.asarray(encoded_positions, dtype=np.int8))
+    np.save(os.path.join(out_dir, 'encoded_moves_' + player + '.npy'), np.asarray(encoded_moves, dtype=np.int64))  # CrossEntropyLoss needs int64 targets
 
-# white
-# Call the function to encode all moves and positions from CSV files in a directory
-encoded_positions, encoded_moves = encode_all_moves_and_positions_from_directory('data/rawData/white', env)
 
-# Call the function to save the encoded data
-save_encoded_data(encoded_positions, encoded_moves, 'white')
+def main():
+    parser = argparse.ArgumentParser(description='Encode raw (FEN, move) CSVs into training arrays.')
+    parser.add_argument('--raw', default='data/rawData', help='directory with white/ and black/ CSV folders')
+    parser.add_argument('--out', default='data/preparedData')
+    parser.add_argument('--sides', nargs='+', default=['white', 'black'])
+    args = parser.parse_args()
 
-# black
-encoded_positions, encoded_moves = encode_all_moves_and_positions_from_directory('data/rawData/black', env)
-save_encoded_data(encoded_positions, encoded_moves, 'black')
+    env = make_env()
+    for side in args.sides:
+        positions, moves = encode_all_moves_and_positions_from_directory(os.path.join(args.raw, side), env)
+        save_encoded_data(positions, moves, side, args.out)
+        print('Saved', len(moves), side, 'samples to', args.out)
+
+
+if __name__ == '__main__':
+    main()
