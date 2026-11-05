@@ -1,72 +1,68 @@
 #Author: Kishorekumar Vishwanathan
-import numpy as np
-import torch
+"""Benchmarks the trained engine against a random mover.
+
+    python testing_vs_random.py --games 200
+    python testing_vs_random.py --games 20 --engine random   # sanity check, no weights
+
+Reports wins, draws, losses and average game length. The previous version
+counted any exception as a loss and reused the loop variable for both games
+and moves; errors are now reported separately.
+"""
+import argparse
+import random
+import statistics
+
 import chess
-from model_trainTest import Model
-from model_trainTest import * 
-from stockfish import Stockfish
 
-saved_model = Model()
+from engine import NoLegalMoves, RandomEngine
 
-#load best model path from your file
-# f = open("./savedModels/bestModel.txt", "r")
-# bestLoss = float(f.readline())
-# model_path = f.readline()
-# f.close()
 
-model_path = "savedModels/model_20231230_170618_99"
-saved_model.load_state_dict(torch.load(model_path))
-saved_model.eval()
-
-numOfGames = 200
-winnedGames = 0
-lostGames = 0
-listOfMovesCount = []
-for i in range(numOfGames):
-
+def play_game(engine, rng, max_plies=300, engine_color=chess.WHITE):
     board = chess.Board()
-    allMoves = [] #list of strings for saving moves for setting pos for stockfish
+    while not board.is_game_over() and board.ply() < max_plies:
+        if board.turn == engine_color:
+            board.push_uci(engine.best_move(board.fen()))
+        else:
+            board.push(rng.choice(list(board.legal_moves)))
+    outcome = board.outcome()
+    if outcome is None or outcome.winner is None:
+        return "draw", board.ply()
+    return ("win" if outcome.winner == engine_color else "loss"), board.ply()
 
-    MAX_NUMBER_OF_MOVES = 150
-    for i in range(MAX_NUMBER_OF_MOVES): #set a limit for the game
 
-        #first my ai move
+def evaluate(engine, games=200, seed=0, max_plies=300):
+    rng = random.Random(seed)
+    tally = {"win": 0, "draw": 0, "loss": 0, "error": 0}
+    lengths = []
+    for g in range(games):
+        color = chess.WHITE if g % 2 == 0 else chess.BLACK  # alternate colours for fairness
         try:
-            move = saved_model.predict(board)
-            board.push(move)
-            allMoves.append(str(move)) #add so stockfish can see
-        except:
-            # print("game over. You lost")
-            # print("FEN:", board.fen())
-            # print(board)
-            # print("Move number:", i)
-            lostGames += 1
-            listOfMovesCount.append(i)
-            break
-
-        if board.is_game_over():
-            # print("game over. You won")
-            # print("FEN:", board.fen())
-            # print(board)
-            # print("Move number:", i)
-            winnedGames += 1
-            listOfMovesCount.append(i)
-            break    
-        # #then random move
-        legalMoves =  board.generate_legal_moves()
-        # print("Legal moves:", legalMoves)
-        randomMove = np.random.choice(list(legalMoves))
-        # print("Random move:", randomMove)
-        board.push(randomMove)
+            result, plies = play_game(engine, rng, max_plies, color)
+        except (NoLegalMoves, ValueError) as exc:
+            print(f"game {g}: engine error: {exc}")
+            tally["error"] += 1
+            continue
+        tally[result] += 1
+        lengths.append(plies)
+    tally["avg_plies"] = round(statistics.mean(lengths), 1) if lengths else 0
+    return tally
 
 
-        # stockfish.set_position(allMoves)
-        # stockfishMove = stockfish.get_best_move_time(3)
-        # allMoves.append(stockfishMove)
-        # stockfishMove = chess.Move.from_uci(stockfishMove)
-        # board.push(stockfishMove)
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--games", type=int, default=200)
+    p.add_argument("--engine", choices=["model", "random"], default="model")
+    p.add_argument("--seed", type=int, default=0)
+    args = p.parse_args()
+    if args.engine == "random":
+        engine = RandomEngine(seed=args.seed + 1)
+    else:
+        from engine import ModelEngine
+
+        engine = ModelEngine()
+    r = evaluate(engine, args.games, args.seed)
+    print(f"Games: {args.games}  Wins: {r['win']}  Draws: {r['draw']}  Losses: {r['loss']}  Errors: {r['error']}  Avg plies: {r['avg_plies']}")
 
 
-print("Games played:",numOfGames ,"Winned games:", winnedGames, "Lost games:", lostGames)
-print("Average number of moves:", round(np.mean(listOfMovesCount),2))
-
+if __name__ == "__main__":
+    main()

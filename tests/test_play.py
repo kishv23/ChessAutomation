@@ -33,3 +33,11 @@ def test_resign():
     arm = SimulatedArm()
     controller = ArmController(arm, BoardGeometry(Calibration()))
     assert play(RandomEngine(), controller, chess.BLACK, read=lambda p: "resign", write=lambda m: None) == "0-1"
+
+
+def test_evaluate_random_vs_random_reports_every_game():
+    from testing_vs_random import evaluate
+
+    r = evaluate(RandomEngine(seed=3), games=4, seed=4, max_plies=60)
+    assert r["win"] + r["draw"] + r["loss"] + r["error"] == 4
+    assert r["error"] == 0
